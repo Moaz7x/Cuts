@@ -1,15 +1,11 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../../models/project_model.dart';
 import '../../models/ruler_model.dart';
 import '../../providers/flashcard_provider.dart';
 import '../../providers/image_provider.dart';
 import '../../providers/ruler_provider.dart';
 import '../../utils/image_cropper_service.dart';
-import '../../utils/project_service.dart';
 import '../../widgets/draggable_ruler_widget.dart';
 import '../editor/editor_screen.dart';
 
@@ -21,73 +17,62 @@ class CroppingScreen extends StatefulWidget {
 }
 
 class _CroppingScreenState extends State<CroppingScreen> {
-  // Use two keys: one for the image itself, and one for the Stack that contains it.
   final GlobalKey _imageKey = GlobalKey();
   final GlobalKey _stackKey = GlobalKey();
 
-  @override
-  void initState() {
-    super.initState();
-    // When the screen is first built, clear any old data from providers.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Check if rulers are already present (e.g., from a loaded project).
-      // If not, clear them.
-      if (Provider.of<RulerProvider>(context, listen: false).rulers.isEmpty) {
-        Provider.of<RulerProvider>(context, listen: false).clearRulers();
-      }
-      Provider.of<FlashcardProvider>(context, listen: false).clear();
-    });
-  }
-
-  /// Processes the image with the current ruler positions and navigates to the editor.
-  Future<void> _processAndNavigate() async {
+  /// Processes only the currently active image.
+  Future<void> _processCurrentImage() async {
     final imageProvider = Provider.of<ImageStateProvider>(context, listen: false);
     final rulerProvider = Provider.of<RulerProvider>(context, listen: false);
     final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
 
-    final imageFile =  imageProvider.currentImage;
-
+    final imageFile = imageProvider.currentImage;
     if (imageFile == null) return;
 
-    // Get the RenderBox for both the image and its containing Stack.
     final RenderBox? imageRenderBox = _imageKey.currentContext?.findRenderObject() as RenderBox?;
     final RenderBox? stackRenderBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (imageRenderBox == null || stackRenderBox == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Error: Could not calculate image layout.")));
-      }
-      return;
-    }
+    if (imageRenderBox == null || stackRenderBox == null) return;
 
     final displayedImageSize = imageRenderBox.size;
+    final imageTopLeftOffset = imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
 
-    // Calculate the image's top-left offset relative to the Stack.
-    // This gives us the exact padding Flutter adds around the image.
-    final imageTopLeftOffset =
-        imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
+    final croppedImages = await ImageCropperService.cropImageWithRulers(
+      imageFile: imageFile,
+      rulers: rulerProvider.rulers,
+      displayedImageSize: displayedImageSize,
+      imageOffset: imageTopLeftOffset,
+      // THE FIX: Provide the starting ID based on the number of existing flashcards.
+      startingId: flashcardProvider.croppedImages.length,
+    );
 
+    flashcardProvider.addCroppedImages(croppedImages);
+  }
+
+  /// Main action method: handles dialogs, processes the image, and advances the workflow.
+  Future<void> _processAndAdvance() async {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Pass all the necessary layout information to the service for accurate cropping.
-    final croppedImages = await ImageCropperService.cropImageWithRulers(
-      imageFile: imageFile,
-      rulers: rulerProvider.rulers,
-      displayedImageSize: displayedImageSize,
-      imageOffset: imageTopLeftOffset,
-    );
-
-    flashcardProvider.setCroppedImages(croppedImages);
+    await _processCurrentImage();
 
     if (context.mounted) Navigator.pop(context);
 
-    if (context.mounted) {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditorScreen()));
+    final imageProvider = Provider.of<ImageStateProvider>(context, listen: false);
+    final rulerProvider = Provider.of<RulerProvider>(context, listen: false);
+
+    if (imageProvider.currentIndex < imageProvider.imageList.length - 1) {
+      imageProvider.setCurrentIndex(imageProvider.currentIndex + 1);
+      rulerProvider.clearRulers();
+    } else {
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const EditorScreen()),
+        );
+      }
     }
   }
 
@@ -95,33 +80,16 @@ class _CroppingScreenState extends State<CroppingScreen> {
   Widget build(BuildContext context) {
     final imageProvider = Provider.of<ImageStateProvider>(context);
     final rulerProvider = Provider.of<RulerProvider>(context);
-final File? selectedImage = imageProvider.currentImage; // This is the new, correct code
+    final File? selectedImage = imageProvider.currentImage;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Create Cuts"),
+        title: Text("Cutting Image ${imageProvider.currentIndex + 1} of ${imageProvider.imageList.length}"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: "Save Project",
-            onPressed: () async {
-              if (imageProvider.currentImage?.path == null) return;
-              final project = Project(
-                imagePath: imageProvider.currentImage!.path,
-                rulers: rulerProvider.rulers,
-              );
-              await ProjectService.saveProject(project);
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("Project Saved!")));
-              }
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.check),
-            tooltip: "Process Cuts",
-            onPressed: _processAndNavigate,
+            tooltip: "Confirm Cuts & Next Image",
+            onPressed: _processAndAdvance,
           ),
         ],
       ),
@@ -133,28 +101,25 @@ final File? selectedImage = imageProvider.currentImage; // This is the new, corr
               child: selectedImage == null
                   ? const Center(child: Text("No Image Selected."))
                   : Stack(
-                      key: _stackKey, // Assign key to the parent Stack
+                      key: _stackKey,
                       fit: StackFit.expand,
                       children: [
                         Center(
                           child: Image.file(
                             selectedImage,
-                            key: _imageKey, // Assign key to the Image
+                            key: _imageKey,
                             fit: BoxFit.contain,
                           ),
                         ),
-                        // Use a LayoutBuilder to get constraints for the rulers
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return Stack(
-                              children: [
-                                ...rulerProvider.rulers.map((ruler) {
-                                  return DraggableRuler(ruler: ruler, constraints: constraints);
-                                }).toList(),
-                              ],
-                            );
-                          },
-                        ),
+                        LayoutBuilder(builder: (context, constraints) {
+                          return Stack(
+                            children: [
+                              ...rulerProvider.rulers.map((ruler) {
+                                return DraggableRuler(ruler: ruler, constraints: constraints);
+                              }).toList(),
+                            ],
+                          );
+                        }),
                       ],
                     ),
             ),
@@ -170,7 +135,11 @@ final File? selectedImage = imageProvider.currentImage; // This is the new, corr
                   icon: const Icon(Icons.horizontal_rule),
                   label: const Text("Add Horizontal"),
                 ),
-
+                ElevatedButton.icon(
+                  onPressed: () => rulerProvider.addRuler(RulerOrientation.vertical),
+                  icon: const Icon(Icons.place),
+                  label: const Text("Add Vertical"),
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete_sweep),
                   onPressed: () {
@@ -178,7 +147,7 @@ final File? selectedImage = imageProvider.currentImage; // This is the new, corr
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text("Clear All Rulers?"),
-                        content: const Text("Are you sure you want to remove all rulers?"),
+                        content: const Text("Are you sure you want to remove all rulers from this image?"),
                         actions: [
                           TextButton(
                             child: const Text("Cancel"),

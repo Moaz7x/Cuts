@@ -39,7 +39,13 @@ class ImageStateProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-
+ void replaceImageAtIndex(int index, File newImage) {
+    if (index >= 0 && index < _imageList.length) {
+      _imageList[index] = newImage;
+      // Notify listeners so the StagingScreen updates its thumbnail.
+      notifyListeners();
+    }
+  }
   /// Clears all images and resets the state.
   void clearAll() {
     _imageList = [];

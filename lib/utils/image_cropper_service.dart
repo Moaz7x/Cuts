@@ -4,79 +4,58 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import '../models/ruler_model.dart';
 
-/// A simple data class to hold the result of a single crop operation.
-/// It contains a unique ID and the image data as a byte list.
+/// A data class to hold the generated flashcard image data along with a unique ID.
 class CroppedImage {
   final int id;
   final Uint8List imageBytes;
+
   CroppedImage({required this.id, required this.imageBytes});
 }
 
-/// A service class containing the static method to perform the cropping logic.
+/// A service dedicated to handling the image cropping logic.
 class ImageCropperService {
-  /// Crops a single image into multiple smaller images based on ruler positions.
-  ///
-  /// This function takes the original [imageFile], the list of [rulers],
-  /// the on-screen [displayedImageSize] of the image widget, and the [imageOffset]
-  /// which is the padding around the image within its container.
+  /// Takes an image file and a list of rulers and returns a list of cropped image bytes.
   static Future<List<CroppedImage>> cropImageWithRulers({
     required File imageFile,
     required List<Ruler> rulers,
     required Size displayedImageSize,
-    required Offset imageOffset, // Accepts the offset for accurate calculations
+    required Offset imageOffset,
+    required int startingId, // This is the crucial addition
   }) async {
-    // 1. Read the file and decode it into an image object.
+    final List<CroppedImage> croppedImages = [];
     final imageBytes = await imageFile.readAsBytes();
-    final originalImage = img.decodeImage(imageBytes);
-    if (originalImage == null) {
-      return [];
-    }
+    final img.Image? originalImage = img.decodeImage(imageBytes);
 
-    // 2. Separate rulers into horizontal and vertical lists and sort them.
+    if (originalImage == null) return [];
+
+    final double scaleX = originalImage.width / displayedImageSize.width;
+    final double scaleY = originalImage.height / displayedImageSize.height;
+
     final horizontalRulers = rulers.where((r) => r.orientation == RulerOrientation.horizontal).toList();
     final verticalRulers = rulers.where((r) => r.orientation == RulerOrientation.vertical).toList();
 
     horizontalRulers.sort((a, b) => a.position.compareTo(b.position));
     verticalRulers.sort((a, b) => a.position.compareTo(b.position));
 
-    // 3. Calculate the scaling factor between the on-screen image and the original file.
-    final scaleX = originalImage.width / displayedImageSize.width;
-    final scaleY = originalImage.height / displayedImageSize.height;
+    final List<double> horizontalCuts = [0, ...horizontalRulers.map((r) => r.position), displayedImageSize.height];
+    final List<double> verticalCuts = [0, ...verticalRulers.map((r) => r.position), displayedImageSize.width];
 
-    // 4. THE FIX: Create lists of cut points, adjusting for the image's offset.
-    // This makes the ruler positions relative to the image's top-left corner,
-    // correcting for any centering/padding.
-    final List<double> xCuts = [
-      0.0, // Start at the left edge of the image
-      ...verticalRulers.map((r) => r.position - imageOffset.dx),
-      displayedImageSize.width, // End at the right edge of the image
-    ];
-    final List<double> yCuts = [
-      0.0, // Start at the top edge of the image
-      ...horizontalRulers.map((r) => r.position - imageOffset.dy),
-      displayedImageSize.height, // End at the bottom edge of the image
-    ];
+    // Initialize the counter with the provided starting ID.
+    int idCounter = startingId;
 
-    final List<CroppedImage> croppedImages = [];
-    int idCounter = 0;
+    for (int i = 0; i < horizontalCuts.length - 1; i++) {
+      for (int j = 0; j < verticalCuts.length - 1; j++) {
+        final double y1 = (horizontalCuts[i] - imageOffset.dy) * scaleY;
+        final double y2 = (horizontalCuts[i + 1] - imageOffset.dy) * scaleY;
+        final double x1 = (verticalCuts[j] - imageOffset.dx) * scaleX;
+        final double x2 = (verticalCuts[j + 1] - imageOffset.dx) * scaleX;
 
-    // 5. Loop through the grid defined by the cut points.
-    for (int i = 0; i < yCuts.length - 1; i++) {
-      for (int j = 0; j < xCuts.length - 1; j++) {
-        // Clamp values to prevent negative dimensions from floating point errors or rulers outside the image.
-        final x1 = xCuts[j].clamp(0.0, displayedImageSize.width) * scaleX;
-        final y1 = yCuts[i].clamp(0.0, displayedImageSize.height) * scaleY;
-        final x2 = xCuts[j + 1].clamp(0.0, displayedImageSize.width) * scaleX;
-        final y2 = yCuts[i + 1].clamp(0.0, displayedImageSize.height) * scaleY;
+        final int width = (x2 - x1).round();
+        final int height = (y2 - y1).round();
 
-        final width = (x2 - x1).round();
-        final height = (y2 - y1).round();
-
-        // Skip any invalid or zero-sized crops.
         if (width <= 0 || height <= 0) continue;
 
-        // 6. Perform the crop operation using the 'image' package.
-        final croppedPart = img.copyCrop(
+        final img.Image croppedPart = img.copyCrop(
           originalImage,
           x: x1.round(),
           y: y1.round(),
@@ -84,8 +63,8 @@ class ImageCropperService {
           height: height,
         );
 
-        // 7. Encode the cropped part as a PNG and add it to our results list.
         final encodedImage = img.encodePng(croppedPart);
+        // Use the globally unique ID.
         croppedImages.add(CroppedImage(id: idCounter++, imageBytes: Uint8List.fromList(encodedImage)));
       }
     }
