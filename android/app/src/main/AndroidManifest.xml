@@ -1,8 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
    <uses-permission android:name="android.permission.CAMERA"/>
-
-    <application
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- On newer Android, this is sometimes needed, but READ_EXTERNAL_STORAGE usually works for compatibility -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/> <application
         android:label="cuts"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

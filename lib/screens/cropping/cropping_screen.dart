@@ -1,6 +1,8 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/project_model.dart';
 import '../../models/ruler_model.dart';
 import '../../providers/flashcard_provider.dart';
@@ -51,9 +53,9 @@ class _CroppingScreenState extends State<CroppingScreen> {
     final RenderBox? stackRenderBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     if (imageRenderBox == null || stackRenderBox == null) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error: Could not calculate image layout.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Error: Could not calculate image layout.")));
       }
       return;
     }
@@ -62,7 +64,8 @@ class _CroppingScreenState extends State<CroppingScreen> {
 
     // Calculate the image's top-left offset relative to the Stack.
     // This gives us the exact padding Flutter adds around the image.
-    final imageTopLeftOffset = imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
+    final imageTopLeftOffset =
+        imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
 
     showDialog(
       context: context,
@@ -83,10 +86,7 @@ class _CroppingScreenState extends State<CroppingScreen> {
     if (context.mounted) Navigator.pop(context);
 
     if (context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const EditorScreen()),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditorScreen()));
     }
   }
 
@@ -111,9 +111,9 @@ class _CroppingScreenState extends State<CroppingScreen> {
               );
               await ProjectService.saveProject(project);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Project Saved!")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text("Project Saved!")));
               }
             },
           ),
@@ -143,15 +143,17 @@ class _CroppingScreenState extends State<CroppingScreen> {
                           ),
                         ),
                         // Use a LayoutBuilder to get constraints for the rulers
-                        LayoutBuilder(builder: (context, constraints) {
-                          return Stack(
-                            children: [
-                              ...rulerProvider.rulers.map((ruler) {
-                                return DraggableRuler(ruler: ruler, constraints: constraints);
-                              }).toList(),
-                            ],
-                          );
-                        }),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Stack(
+                              children: [
+                                ...rulerProvider.rulers.map((ruler) {
+                                  return DraggableRuler(ruler: ruler, constraints: constraints);
+                                }).toList(),
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
             ),
@@ -167,11 +169,7 @@ class _CroppingScreenState extends State<CroppingScreen> {
                   icon: const Icon(Icons.horizontal_rule),
                   label: const Text("Add Horizontal"),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => rulerProvider.addRuler(RulerOrientation.vertical),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text("Add Vertical"),
-                ),
+
                 IconButton(
                   icon: const Icon(Icons.delete_sweep),
                   onPressed: () {
