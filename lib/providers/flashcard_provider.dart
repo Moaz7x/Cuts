@@ -22,4 +22,8 @@ class FlashcardProvider with ChangeNotifier {
     _croppedImages.clear();
     notifyListeners();
   }
+    void addCroppedImages(List<CroppedImage> newImages) {
+    _croppedImages.addAll(newImages);
+    notifyListeners();
+  }
 }

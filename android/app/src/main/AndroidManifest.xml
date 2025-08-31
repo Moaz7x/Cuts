@@ -1,8 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <!-- On newer Android, this is sometimes needed, but READ_EXTERNAL_STORAGE usually works for compatibility -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/> <application
+
+    <!-- For Android 12 (SDK 32 ) and lower -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- For Android 13 (SDK 33) and higher -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" /> 
+     <application
         android:label="cuts"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

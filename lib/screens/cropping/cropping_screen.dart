@@ -45,7 +45,8 @@ class _CroppingScreenState extends State<CroppingScreen> {
     final rulerProvider = Provider.of<RulerProvider>(context, listen: false);
     final flashcardProvider = Provider.of<FlashcardProvider>(context, listen: false);
 
-    final imageFile = imageProvider.image;
+    final imageFile =  imageProvider.currentImage;
+
     if (imageFile == null) return;
 
     // Get the RenderBox for both the image and its containing Stack.
@@ -94,7 +95,7 @@ class _CroppingScreenState extends State<CroppingScreen> {
   Widget build(BuildContext context) {
     final imageProvider = Provider.of<ImageStateProvider>(context);
     final rulerProvider = Provider.of<RulerProvider>(context);
-    final File? selectedImage = imageProvider.image;
+final File? selectedImage = imageProvider.currentImage; // This is the new, correct code
 
     return Scaffold(
       appBar: AppBar(
@@ -104,9 +105,9 @@ class _CroppingScreenState extends State<CroppingScreen> {
             icon: const Icon(Icons.save),
             tooltip: "Save Project",
             onPressed: () async {
-              if (imageProvider.image?.path == null) return;
+              if (imageProvider.currentImage?.path == null) return;
               final project = Project(
-                imagePath: imageProvider.image!.path,
+                imagePath: imageProvider.currentImage!.path,
                 rulers: rulerProvider.rulers,
               );
               await ProjectService.saveProject(project);

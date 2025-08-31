@@ -65,7 +65,7 @@ class _AdjustScreenState extends State<AdjustScreen> {
   @override
   Widget build(BuildContext context) {
     final imageProvider = Provider.of<ImageStateProvider>(context);
-    final File? selectedImage = imageProvider.image;
+    final File? selectedImage = imageProvider.currentImage;
 
     return Scaffold(
       appBar: AppBar(

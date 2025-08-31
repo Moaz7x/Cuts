@@ -57,6 +57,7 @@ dependencies:
   vector_math: ^2.1.4
   document_scanner_flutter: ^0.2.7
   permission_handler: ^11.3.1
+  device_info_plus: ^10.1.2
 
     # For advanced image processing like perspective transform
 

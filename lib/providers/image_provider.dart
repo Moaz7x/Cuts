@@ -2,41 +2,48 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// This provider manages the state of the primary image being worked on.
-/// It holds the image file and provides methods to update it.
+/// This provider now manages a list of images for batch processing.
 class ImageStateProvider with ChangeNotifier {
-  File? _image;
   final ImagePicker _picker = ImagePicker();
 
-  /// The current image file. Widgets can listen to this to get the image.
-  File? get image => _image;
+  /// The list of all images selected for the current batch.
+  List<File> _imageList = [];
+  List<File> get imageList => _imageList;
 
-  /// Sets the provider's image directly from a [File] object.
-  ///
-  /// This is the new method we use after the document scanner
-  /// provides us with a processed image file.
-  void setImage(File newImage) {
-    _image = newImage;
-    // Notify all listening widgets that the image has changed, so they can rebuild.
+  /// The index of the image currently being edited.
+  int _currentIndex = -1;
+  int get currentIndex => _currentIndex;
+
+  /// The image that is currently active in the editor.
+  File? get currentImage => _currentIndex != -1 ? _imageList[_currentIndex] : null;
+
+  /// Replaces the entire image list with a new list of [XFile]s from the picker.
+  Future<void> pickMultipleImages() async {
+    final List<XFile> pickedFiles = await _picker.pickMultiImage();
+    if (pickedFiles.isNotEmpty) {
+      _imageList = pickedFiles.map((file) => File(file.path)).toList();
+      // Set the first image as the current one to start.
+      _currentIndex = 0;
+      notifyListeners();
+    }
+  }
+  void startNewBatchWithSingleImage(File image) {
+    _imageList = [image]; // Create a new list with just this image
+    _currentIndex = 0;   // Set it as the current item
     notifyListeners();
   }
-
-  /// Picks an image from the device's gallery using [ImagePicker].
-  ///
-  /// This method is kept for potential future use but is currently
-  /// not called from the main UI flow, which now uses the document scanner.
-  Future<void> pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      _image = File(pickedFile.path);
+  /// Sets the currently active image by its index in the list.
+  void setCurrentIndex(int index) {
+    if (index >= 0 && index < _imageList.length) {
+      _currentIndex = index;
       notifyListeners();
     }
   }
 
-  /// Clears the current image from the state.
-  void clearImage() {
-    _image = null;
+  /// Clears all images and resets the state.
+  void clearAll() {
+    _imageList = [];
+    _currentIndex = -1;
     notifyListeners();
   }
 }
