@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/ruler_model.dart';
 import '../../providers/flashcard_provider.dart';
 import '../../providers/image_provider.dart';
@@ -29,21 +32,30 @@ class _CroppingScreenState extends State<CroppingScreen> {
     final imageFile = imageProvider.currentImage;
     if (imageFile == null) return;
 
+    // --- START OF THE FIX ---
+
+    // 1. Read the image file into a byte list (Uint8List) before calling the service.
+    final Uint8List imageBytesToCrop = await imageFile.readAsBytes();
+
+    // --- END OF THE FIX ---
+
     final RenderBox? imageRenderBox = _imageKey.currentContext?.findRenderObject() as RenderBox?;
     final RenderBox? stackRenderBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     if (imageRenderBox == null || stackRenderBox == null) return;
 
     final displayedImageSize = imageRenderBox.size;
-    final imageTopLeftOffset = imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
+    final imageTopLeftOffset =
+        imageRenderBox.localToGlobal(Offset.zero) - stackRenderBox.localToGlobal(Offset.zero);
 
+    // --- ANOTHER FIX: Update the function call ---
     final croppedImages = await ImageCropperService.cropImageWithRulers(
-      imageFile: imageFile,
+      imageBytes: imageBytesToCrop, // Use the new 'imageBytes' parameter
       rulers: rulerProvider.rulers,
       displayedImageSize: displayedImageSize,
       imageOffset: imageTopLeftOffset,
-      // THE FIX: Provide the starting ID based on the number of existing flashcards.
       startingId: flashcardProvider.croppedImages.length,
     );
+    // --- END OF FIX ---
 
     flashcardProvider.addCroppedImages(croppedImages);
   }
@@ -84,7 +96,9 @@ class _CroppingScreenState extends State<CroppingScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Cutting Image ${imageProvider.currentIndex + 1} of ${imageProvider.imageList.length}"),
+        title: Text(
+          "Cutting Image ${imageProvider.currentIndex + 1} of ${imageProvider.imageList.length}",
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
@@ -105,21 +119,19 @@ class _CroppingScreenState extends State<CroppingScreen> {
                       fit: StackFit.expand,
                       children: [
                         Center(
-                          child: Image.file(
-                            selectedImage,
-                            key: _imageKey,
-                            fit: BoxFit.contain,
-                          ),
+                          child: Image.file(selectedImage, key: _imageKey, fit: BoxFit.contain),
                         ),
-                        LayoutBuilder(builder: (context, constraints) {
-                          return Stack(
-                            children: [
-                              ...rulerProvider.rulers.map((ruler) {
-                                return DraggableRuler(ruler: ruler, constraints: constraints);
-                              }).toList(),
-                            ],
-                          );
-                        }),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Stack(
+                              children: [
+                                ...rulerProvider.rulers.map((ruler) {
+                                  return DraggableRuler(ruler: ruler, constraints: constraints);
+                                }).toList(),
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
             ),
@@ -147,7 +159,9 @@ class _CroppingScreenState extends State<CroppingScreen> {
                       context: context,
                       builder: (ctx) => AlertDialog(
                         title: const Text("Clear All Rulers?"),
-                        content: const Text("Are you sure you want to remove all rulers from this image?"),
+                        content: const Text(
+                          "Are you sure you want to remove all rulers from this image?",
+                        ),
                         actions: [
                           TextButton(
                             child: const Text("Cancel"),

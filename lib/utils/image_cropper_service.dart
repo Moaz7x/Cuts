@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
@@ -14,16 +13,14 @@ class CroppedImage {
 
 /// A service dedicated to handling the image cropping logic.
 class ImageCropperService {
-  /// Takes an image file and a list of rulers and returns a list of cropped image bytes.
   static Future<List<CroppedImage>> cropImageWithRulers({
-    required File imageFile,
+    required Uint8List imageBytes,
     required List<Ruler> rulers,
     required Size displayedImageSize,
-    required Offset imageOffset,
-    required int startingId, // This is the crucial addition
+    required Offset imageOffset, // This contains the top-left corner of the image
+    required int startingId,
   }) async {
     final List<CroppedImage> croppedImages = [];
-    final imageBytes = await imageFile.readAsBytes();
     final img.Image? originalImage = img.decodeImage(imageBytes);
 
     if (originalImage == null) return [];
@@ -37,14 +34,33 @@ class ImageCropperService {
     horizontalRulers.sort((a, b) => a.position.compareTo(b.position));
     verticalRulers.sort((a, b) => a.position.compareTo(b.position));
 
-    final List<double> horizontalCuts = [0, ...horizontalRulers.map((r) => r.position), displayedImageSize.height];
-    final List<double> verticalCuts = [0, ...verticalRulers.map((r) => r.position), displayedImageSize.width];
+    // --- START OF THE FIX ---
 
-    // Initialize the counter with the provided starting ID.
+    // 1. Define the image's boundaries in the widget coordinate system.
+    final double imageStartX = imageOffset.dx;
+    final double imageEndX = imageOffset.dx + displayedImageSize.width;
+    final double imageStartY = imageOffset.dy;
+    final double imageEndY = imageOffset.dy + displayedImageSize.height;
+
+    // 2. Create the list of cuts using the correct image boundaries, not the canvas boundaries.
+    final List<double> horizontalCuts = [
+      imageStartY, // Use the image's top edge
+      ...horizontalRulers.map((r) => r.position),
+      imageEndY,   // Use the image's bottom edge
+    ];
+    final List<double> verticalCuts = [
+      imageStartX, // Use the image's left edge
+      ...verticalRulers.map((r) => r.position),
+      imageEndX,   // Use the image's right edge
+    ];
+
+    // --- END OF THE FIX ---
+
     int idCounter = startingId;
 
     for (int i = 0; i < horizontalCuts.length - 1; i++) {
       for (int j = 0; j < verticalCuts.length - 1; j++) {
+        // The rest of the logic works perfectly with these corrected boundaries.
         final double y1 = (horizontalCuts[i] - imageOffset.dy) * scaleY;
         final double y2 = (horizontalCuts[i + 1] - imageOffset.dy) * scaleY;
         final double x1 = (verticalCuts[j] - imageOffset.dx) * scaleX;
@@ -64,7 +80,6 @@ class ImageCropperService {
         );
 
         final encodedImage = img.encodePng(croppedPart);
-        // Use the globally unique ID.
         croppedImages.add(CroppedImage(id: idCounter++, imageBytes: Uint8List.fromList(encodedImage)));
       }
     }
